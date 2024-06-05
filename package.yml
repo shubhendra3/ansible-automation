@@ -1,0 +1,78 @@
+---
+- name: installing packages
+  hosts: localhost
+  connection: local
+  become: true
+  tasks:
+    - name: update
+      ansible.builtin.package:
+        name: '*'
+        state: latest
+
+    - name: Installing fish
+      ansible.builtin.package:
+        name: fish
+        state: present
+
+    - name: Check current shell of root user
+      ansible.builtin.shell: "getent passwd root | cut -d: -f7"
+      register: current_shell
+
+    - name: Changing default shell to fish for the user
+      ansible.builtin.command: usermod -s /usr/bin/fish root
+      when: current_shell.stdout.strip() != "/usr/bin/fish"
+
+    - name: Ensure curl is installed
+      ansible.builtin.package:
+        name: curl
+        state: present
+
+    - name: Install Node.js
+      ansible.builtin.package:
+        name: nodejs
+        state: present
+
+    - name: Verify Node.js installation
+      ansible.builtin.command: node --version
+      register: node_version
+
+    - name: Display Node.js version
+      ansible.builtin.debug:
+        msg: "Node.js version installed: {{ node_version.stdout }}"
+
+    - name: Install npm (Node.js package manager)
+      ansible.builtin.package:
+        name: npm
+        state: present
+
+    - name: Install pnpm using npm
+      npm:
+        name: pnpm
+        global: yes
+
+    - name: Check if Docker is already installed
+      ansible.builtin.command: which docker
+      register: docker_installed
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Docker script download
+      ansible.builtin.command: curl -fsSL https://get.docker.com -o install-docker.sh
+      when: docker_installed.rc != 0
+
+    - name: Docker script install
+      ansible.builtin.command: sudo sh install-docker.sh
+      when: docker_installed.rc != 0
+
+    - name: Start docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Checking docker working
+      ansible.builtin.command: docker run hello-world
+      register: hello
+
+    - debug: 
+        var: hello
